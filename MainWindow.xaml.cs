@@ -1,5 +1,6 @@
 ﻿using ImageAnalysis.Helpers;
 using ImageAnalysis.Readers;
+using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -15,7 +16,6 @@ namespace ImageAnalysis
         private List<string> dicomFiles = new List<string>();
         private int currentIndex = 0;
 
-       
         private DateTime lastScrollTime = DateTime.MinValue;
         private const int ScrollDelayMs = 120;
 
@@ -24,7 +24,35 @@ namespace ImageAnalysis
             InitializeComponent();
         }
 
-        private void UploadButton_Click(object sender, RoutedEventArgs e)
+        private void UploadFile_Click(object sender, RoutedEventArgs e)
+        {
+            Microsoft.Win32.OpenFileDialog dialog = new Microsoft.Win32.OpenFileDialog();
+
+            if (dialog.ShowDialog() == true)
+            {
+                dicomFiles.Clear();
+                MetadataList.ItemsSource = null;
+
+                var fileType = FileTypeDetector.Detect(dialog.FileName);
+                StatusText.Text = $"Detected: {fileType}";
+
+                if (fileType == MedicalFileType.Dicom)
+                {
+                    ImageViewer.Source = DicomImageReader.LoadImage(dialog.FileName);
+                    MetadataList.ItemsSource = DicomMetadataReader.ReadMetadata(dialog.FileName);
+                }
+                else if (fileType == MedicalFileType.Hdf5)
+                {
+                    ImageViewer.Source = Hdf5ImageReader.LoadImage(dialog.FileName);
+                }
+                else
+                {
+                    System.Windows.MessageBox.Show("Unsupported file format.");
+                }
+            }
+        }
+
+        private void UploadFolder_Click(object sender, RoutedEventArgs e)
         {
             using FolderBrowserDialog dialog = new FolderBrowserDialog();
 
@@ -52,27 +80,21 @@ namespace ImageAnalysis
                 return;
 
             ImageViewer.Source = DicomImageReader.LoadImage(dicomFiles[index]);
-
-            var metadata = DicomMetadataReader.ReadMetadata(dicomFiles[index]);
-            MetadataList.ItemsSource = metadata;
-
+            MetadataList.ItemsSource = DicomMetadataReader.ReadMetadata(dicomFiles[index]);
             StatusText.Text = $"Slice {index + 1} / {dicomFiles.Count}";
         }
 
         private void ImageViewer_MouseWheel(object sender, MouseWheelEventArgs e)
         {
-            if (dicomFiles == null || dicomFiles.Count == 0)
+            if (dicomFiles.Count == 0)
                 return;
+
             if ((DateTime.Now - lastScrollTime).TotalMilliseconds < ScrollDelayMs)
                 return;
 
             lastScrollTime = DateTime.Now;
 
-            if (e.Delta > 0)
-                currentIndex--;
-            else
-                currentIndex++;
-
+            currentIndex += e.Delta > 0 ? -1 : 1;
             currentIndex = Math.Max(0, Math.Min(currentIndex, dicomFiles.Count - 1));
 
             LoadDicomSlice(currentIndex);
