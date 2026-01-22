@@ -70,7 +70,8 @@
                             CornerRadius="6">
 
                         <Image Name="ImageViewer"
-                               Stretch="Uniform"/>
+                               Stretch="Uniform"
+                               MouseWheel="ImageViewer_MouseWheel"/>
                     </Border>
                 </Grid>
             </Border>
