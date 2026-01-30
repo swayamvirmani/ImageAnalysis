@@ -11,7 +11,7 @@ namespace ImageAnalysis.Readers
         {
             var dicomImage = new DicomImage(filePath);
 
-            
+
             //dicomImage.WindowWidth = 400;
             //dicomImage.WindowCenter = 40;
 

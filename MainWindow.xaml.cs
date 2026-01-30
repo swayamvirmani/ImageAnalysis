@@ -28,6 +28,7 @@ namespace ImageAnalysis
         {
             Microsoft.Win32.OpenFileDialog dialog = new Microsoft.Win32.OpenFileDialog();
 
+
             if (dialog.ShowDialog() == true)
             {
                 dicomFiles.Clear();
@@ -38,8 +39,26 @@ namespace ImageAnalysis
 
                 if (fileType == MedicalFileType.Dicom)
                 {
-                    ImageViewer.Source = DicomImageReader.LoadImage(dialog.FileName);
-                    MetadataList.ItemsSource = DicomMetadataReader.ReadMetadata(dialog.FileName);
+                    try
+                    {
+                        ImageViewer.Source = DicomImageReader.LoadImage(dialog.FileName);
+                        MetadataList.ItemsSource = DicomMetadataReader.ReadMetadata(dialog.FileName);
+                    }
+                    catch (FellowOakDicom.Imaging.Codec.DicomCodecException)
+                    {
+                        string decompressed =
+                            DicomDecompressor.Decompress(dialog.FileName);
+
+                        ImageViewer.Source =
+                            DicomImageReader.LoadImage(decompressed);
+
+                        MetadataList.ItemsSource =
+                            DicomMetadataReader.ReadMetadata(decompressed);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Windows.MessageBox.Show(ex.Message);
+                    }
                 }
                 else if (fileType == MedicalFileType.Hdf5)
                 {
@@ -79,9 +98,25 @@ namespace ImageAnalysis
             if (index < 0 || index >= dicomFiles.Count)
                 return;
 
-            ImageViewer.Source = DicomImageReader.LoadImage(dicomFiles[index]);
-            MetadataList.ItemsSource = DicomMetadataReader.ReadMetadata(dicomFiles[index]);
-            StatusText.Text = $"Slice {index + 1} / {dicomFiles.Count}";
+            try
+            {
+                ImageViewer.Source = DicomImageReader.LoadImage(dicomFiles[index]);
+                MetadataList.ItemsSource = DicomMetadataReader.ReadMetadata(dicomFiles[index]);
+                StatusText.Text = $"Slice {index + 1} / {dicomFiles.Count}";
+            }
+            catch (FellowOakDicom.Imaging.Codec.DicomCodecException)
+            {
+                string decompressed =
+                    DicomDecompressor.Decompress(dicomFiles[index]);
+
+                ImageViewer.Source =
+                    DicomImageReader.LoadImage(decompressed);
+
+                MetadataList.ItemsSource =
+                    DicomMetadataReader.ReadMetadata(decompressed);
+
+                StatusText.Text = $"Slice {index + 1} / {dicomFiles.Count}";
+            }
         }
 
         private void ImageViewer_MouseWheel(object sender, MouseWheelEventArgs e)
