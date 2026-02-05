@@ -9,18 +9,20 @@ namespace ImageAnalysis.Readers
         public static BitmapSource LoadImage(string filePath)
         {
             var dicomImage = new DicomImage(filePath);
-            return Render(dicomImage);
+            return Render(dicomImage, 0);
         }
 
         public static BitmapSource LoadImage(string filePath, int frameIndex)
         {
-            var dicomImage = new DicomImage(filePath, frameIndex);
-            return Render(dicomImage);
+            var dicomImage = new DicomImage(filePath);
+            dicomImage.WindowWidth = 300;
+            dicomImage.WindowCenter = 100;
+            return Render(dicomImage, frameIndex);
         }
 
-        private static BitmapSource Render(DicomImage image)
+        private static BitmapSource Render(DicomImage image, int frameIndex)
         {
-            var img = image.RenderImage();
+            var img = image.RenderImage(frameIndex);
 
             int width = img.Width;
             int height = img.Height;

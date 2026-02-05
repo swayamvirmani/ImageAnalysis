@@ -9,20 +9,22 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace ImageAnalysis
 {
     public partial class MainWindow : Window
     {
         private List<string> dicomFiles = new List<string>();
-
         private string multiFrameFile = null;
         private int totalFrames = 1;
-
         private int currentIndex = 0;
 
         private DateTime lastScrollTime = DateTime.MinValue;
         private const int ScrollDelayMs = 120;
+
+        private DispatcherTimer cineTimer;
+        private bool isPlaying = false;
 
         public MainWindow()
         {
@@ -35,6 +37,8 @@ namespace ImageAnalysis
 
             if (dialog.ShowDialog() == true)
             {
+                StopCine();
+
                 dicomFiles.Clear();
                 multiFrameFile = null;
                 currentIndex = 0;
@@ -52,35 +56,35 @@ namespace ImageAnalysis
                         if (totalFrames > 1)
                         {
                             multiFrameFile = dialog.FileName;
-                            ImageViewer.Source =
-                                DicomImageReader.LoadImage(multiFrameFile, 0);
+                            ImageViewer.Source = DicomImageReader.LoadImage(multiFrameFile, 0);
                             StatusText.Text = $"Frame 1 / {totalFrames}";
+                            StartCine();
                         }
                         else
                         {
-                            ImageViewer.Source =
-                                DicomImageReader.LoadImage(dialog.FileName);
+                            ImageViewer.Source = DicomImageReader.LoadImage(dialog.FileName);
                         }
 
                         MetadataList.ItemsSource =
                             DicomMetadataReader.ReadMetadata(dialog.FileName);
                     }
-                    catch (FellowOakDicom.Imaging.Codec.DicomCodecException)
+                    catch
                     {
-                        string decompressed =
-                            DicomDecompressor.Decompress(dialog.FileName);
+                        string decompressed = DicomDecompressor.Decompress(dialog.FileName);
 
                         var dicom = new DicomImage(decompressed);
                         totalFrames = dicom.NumberOfFrames;
 
                         if (totalFrames > 1)
                         {
-                            
                             multiFrameFile = decompressed;
                             currentIndex = 0;
+
                             ImageViewer.Source =
                                 DicomImageReader.LoadImage(decompressed, 0);
+
                             StatusText.Text = $"Frame 1 / {totalFrames}";
+                            StartCine();
                         }
                         else
                         {
@@ -106,6 +110,8 @@ namespace ImageAnalysis
 
         private void UploadFolder_Click(object sender, RoutedEventArgs e)
         {
+            StopCine();
+
             using FolderBrowserDialog dialog = new FolderBrowserDialog();
 
             if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
@@ -168,6 +174,37 @@ namespace ImageAnalysis
                 currentIndex = Math.Max(0, Math.Min(currentIndex, dicomFiles.Count - 1));
                 LoadFolderSlice(currentIndex);
             }
+        }
+
+        private void StartCine()
+        {
+            if (cineTimer == null)
+            {
+                cineTimer = new DispatcherTimer();
+                cineTimer.Interval = TimeSpan.FromMilliseconds(40);
+                cineTimer.Tick += CineTimer_Tick;
+            }
+
+            isPlaying = true;
+            cineTimer.Start();
+        }
+
+        private void StopCine()
+        {
+            isPlaying = false;
+            cineTimer?.Stop();
+        }
+
+        private void CineTimer_Tick(object sender, EventArgs e)
+        {
+            if (multiFrameFile == null) return;
+
+            currentIndex++;
+
+            if (currentIndex >= totalFrames)
+                currentIndex = 0;
+
+            LoadMultiFrameSlice(currentIndex);
         }
     }
 }
