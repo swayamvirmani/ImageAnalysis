@@ -1,5 +1,4 @@
 ﻿using FellowOakDicom.Imaging;
-using System;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
@@ -10,17 +9,23 @@ namespace ImageAnalysis.Readers
         public static BitmapSource LoadImage(string filePath)
         {
             var dicomImage = new DicomImage(filePath);
+            return Render(dicomImage);
+        }
 
+        public static BitmapSource LoadImage(string filePath, int frameIndex)
+        {
+            var dicomImage = new DicomImage(filePath, frameIndex);
+            return Render(dicomImage);
+        }
 
-            //dicomImage.WindowWidth = 400;
-            //dicomImage.WindowCenter = 40;
+        private static BitmapSource Render(DicomImage image)
+        {
+            var img = image.RenderImage();
 
-            var image = dicomImage.RenderImage();
+            int width = img.Width;
+            int height = img.Height;
 
-            int width = image.Width;
-            int height = image.Height;
-
-            byte[] pixels = image.As<byte[]>();
+            byte[] pixels = img.As<byte[]>();
 
             WriteableBitmap bitmap = new WriteableBitmap(
                 width,
@@ -38,6 +43,5 @@ namespace ImageAnalysis.Readers
 
             return bitmap;
         }
-
     }
 }

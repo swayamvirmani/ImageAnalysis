@@ -1,6 +1,7 @@
 ﻿using ImageAnalysis.Helpers;
 using ImageAnalysis.Readers;
 using Microsoft.Win32;
+using FellowOakDicom.Imaging;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -14,6 +15,10 @@ namespace ImageAnalysis
     public partial class MainWindow : Window
     {
         private List<string> dicomFiles = new List<string>();
+
+        private string multiFrameFile = null;
+        private int totalFrames = 1;
+
         private int currentIndex = 0;
 
         private DateTime lastScrollTime = DateTime.MinValue;
@@ -28,11 +33,11 @@ namespace ImageAnalysis
         {
             Microsoft.Win32.OpenFileDialog dialog = new Microsoft.Win32.OpenFileDialog();
 
-
             if (dialog.ShowDialog() == true)
             {
                 dicomFiles.Clear();
-                MetadataList.ItemsSource = null;
+                multiFrameFile = null;
+                currentIndex = 0;
 
                 var fileType = FileTypeDetector.Detect(dialog.FileName);
                 StatusText.Text = $"Detected: {fileType}";
@@ -41,28 +46,56 @@ namespace ImageAnalysis
                 {
                     try
                     {
-                        ImageViewer.Source = DicomImageReader.LoadImage(dialog.FileName);
-                        MetadataList.ItemsSource = DicomMetadataReader.ReadMetadata(dialog.FileName);
+                        var dicom = new DicomImage(dialog.FileName);
+                        totalFrames = dicom.NumberOfFrames;
+
+                        if (totalFrames > 1)
+                        {
+                            multiFrameFile = dialog.FileName;
+                            ImageViewer.Source =
+                                DicomImageReader.LoadImage(multiFrameFile, 0);
+                            StatusText.Text = $"Frame 1 / {totalFrames}";
+                        }
+                        else
+                        {
+                            ImageViewer.Source =
+                                DicomImageReader.LoadImage(dialog.FileName);
+                        }
+
+                        MetadataList.ItemsSource =
+                            DicomMetadataReader.ReadMetadata(dialog.FileName);
                     }
                     catch (FellowOakDicom.Imaging.Codec.DicomCodecException)
                     {
                         string decompressed =
                             DicomDecompressor.Decompress(dialog.FileName);
 
-                        ImageViewer.Source =
-                            DicomImageReader.LoadImage(decompressed);
+                        var dicom = new DicomImage(decompressed);
+                        totalFrames = dicom.NumberOfFrames;
+
+                        if (totalFrames > 1)
+                        {
+                            
+                            multiFrameFile = decompressed;
+                            currentIndex = 0;
+                            ImageViewer.Source =
+                                DicomImageReader.LoadImage(decompressed, 0);
+                            StatusText.Text = $"Frame 1 / {totalFrames}";
+                        }
+                        else
+                        {
+                            ImageViewer.Source =
+                                DicomImageReader.LoadImage(decompressed);
+                        }
 
                         MetadataList.ItemsSource =
                             DicomMetadataReader.ReadMetadata(decompressed);
                     }
-                    catch (Exception ex)
-                    {
-                        System.Windows.MessageBox.Show(ex.Message);
-                    }
                 }
                 else if (fileType == MedicalFileType.Hdf5)
                 {
-                    ImageViewer.Source = Hdf5ImageReader.LoadImage(dialog.FileName);
+                    ImageViewer.Source =
+                        Hdf5ImageReader.LoadImage(dialog.FileName);
                 }
                 else
                 {
@@ -84,55 +117,57 @@ namespace ImageAnalysis
 
                 if (dicomFiles.Count == 0)
                 {
-                    System.Windows.MessageBox.Show("No DICOM files found in the selected folder.");
+                    System.Windows.MessageBox.Show("No DICOM files found.");
                     return;
                 }
 
+                multiFrameFile = null;
                 currentIndex = 0;
-                LoadDicomSlice(currentIndex);
+
+                LoadFolderSlice(0);
             }
         }
 
-        private void LoadDicomSlice(int index)
+        private void LoadFolderSlice(int index)
         {
-            if (index < 0 || index >= dicomFiles.Count)
-                return;
+            ImageViewer.Source =
+                DicomImageReader.LoadImage(dicomFiles[index]);
 
-            try
-            {
-                ImageViewer.Source = DicomImageReader.LoadImage(dicomFiles[index]);
-                MetadataList.ItemsSource = DicomMetadataReader.ReadMetadata(dicomFiles[index]);
-                StatusText.Text = $"Slice {index + 1} / {dicomFiles.Count}";
-            }
-            catch (FellowOakDicom.Imaging.Codec.DicomCodecException)
-            {
-                string decompressed =
-                    DicomDecompressor.Decompress(dicomFiles[index]);
+            MetadataList.ItemsSource =
+                DicomMetadataReader.ReadMetadata(dicomFiles[index]);
 
-                ImageViewer.Source =
-                    DicomImageReader.LoadImage(decompressed);
+            StatusText.Text =
+                $"Slice {index + 1} / {dicomFiles.Count}";
+        }
 
-                MetadataList.ItemsSource =
-                    DicomMetadataReader.ReadMetadata(decompressed);
+        private void LoadMultiFrameSlice(int index)
+        {
+            ImageViewer.Source =
+                DicomImageReader.LoadImage(multiFrameFile, index);
 
-                StatusText.Text = $"Slice {index + 1} / {dicomFiles.Count}";
-            }
+            StatusText.Text =
+                $"Frame {index + 1} / {totalFrames}";
         }
 
         private void ImageViewer_MouseWheel(object sender, MouseWheelEventArgs e)
         {
-            if (dicomFiles.Count == 0)
-                return;
-
             if ((DateTime.Now - lastScrollTime).TotalMilliseconds < ScrollDelayMs)
                 return;
 
             lastScrollTime = DateTime.Now;
 
             currentIndex += e.Delta > 0 ? -1 : 1;
-            currentIndex = Math.Max(0, Math.Min(currentIndex, dicomFiles.Count - 1));
 
-            LoadDicomSlice(currentIndex);
+            if (multiFrameFile != null)
+            {
+                currentIndex = Math.Max(0, Math.Min(currentIndex, totalFrames - 1));
+                LoadMultiFrameSlice(currentIndex);
+            }
+            else if (dicomFiles.Count > 0)
+            {
+                currentIndex = Math.Max(0, Math.Min(currentIndex, dicomFiles.Count - 1));
+                LoadFolderSlice(currentIndex);
+            }
         }
     }
 }
