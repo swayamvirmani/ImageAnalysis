@@ -146,15 +146,23 @@ namespace ImageAnalysis.Readers
 
             byte[] pixelsOut = new byte[width * height * 4];
 
-            for (int i = 0; i < data.Length; i++)
+            for (int y = 0; y < height; y++)
             {
-                byte v = (byte)(255f * (data[i] - min) / (max - min));
-                int p = i * 4;
-                pixelsOut[p] = v;
-                pixelsOut[p + 1] = v;
-                pixelsOut[p + 2] = v;
-                pixelsOut[p + 3] = 255;
+                for (int x = 0; x < width; x++)
+                {
+                    int srcIndex = y * width + x;
+                    int dstIndex = x * height + y;
+
+                    byte v = (byte)(255f * (data[srcIndex] - min) / (max - min));
+                    int p = dstIndex * 4;
+
+                    pixelsOut[p] = v;
+                    pixelsOut[p + 1] = v;
+                    pixelsOut[p + 2] = v;
+                    pixelsOut[p + 3] = 255;
+                }
             }
+
 
             H5D.close(datasetId);
             H5S.close(spaceId);
